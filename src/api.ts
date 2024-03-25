@@ -6,7 +6,7 @@ import { page } from '$app/stores'
 import { InteractionEvent } from '@txstate-mws/fastify-shared'
 import { afterNavigate } from '$app/navigation'
 
-export type APIBaseQueryPayload = string | Record<string, string|number|(string|number)[]>
+export type APIBaseQueryPayload = string | Record<string, undefined|string|number|(string|number)[]>
 type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>
 
 /**
