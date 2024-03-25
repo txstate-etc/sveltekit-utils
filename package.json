@@ -1,0 +1,34 @@
+{
+  "name": "@txstate-mws/sveltekit-utils",
+  "version": "1.0.0",
+  "description": "Shared library for code that is specifically tied to sveltekit in addition to svelte.",
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "types": "./dist/index.d.ts",
+  "dependencies": {
+    "@sveltejs/kit": "^2.5.4",
+    "@txstate-mws/fastify-shared": "^1.0.4",
+    "@txstate-mws/svelte-components": "^1.6.1",
+    "txstate-utils": "^1.8.15"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.3"
+  },
+  "scripts": {
+    "prepublishOnly": "npm run build",
+    "build": "tsc -b"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/txstate-etc/sveltekit-utils.git"
+  },
+  "author": "Nick Wing",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/txstate-etc/sveltekit-utils/issues"
+  },
+  "homepage": "https://github.com/txstate-etc/sveltekit-utils#readme",
+  "files": ["dist"]
+}
