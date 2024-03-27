@@ -3,7 +3,7 @@ import { error } from '@sveltejs/kit'
 import { get } from 'svelte/store'
 import { rescue, toArray } from 'txstate-utils'
 import { page } from '$app/stores'
-import { InteractionEvent } from '@txstate-mws/fastify-shared'
+import type { InteractionEvent, ValidatedResponse } from '@txstate-mws/fastify-shared'
 import { afterNavigate } from '$app/navigation'
 
 export type APIBaseQueryPayload = string | Record<string, undefined|string|number|(string|number)[]>
@@ -53,32 +53,33 @@ export class APIBase {
     return '?' + p.toString()
   }
 
-  protected async request <ReturnType = any> (path: string, method: string, payload?: { body?: any, query?: APIBaseQueryPayload }) {
+  protected async request <ReturnType = any> (path: string, method: string, opts?: { body?: any, query?: APIBaseQueryPayload, inlineValidation?: boolean }) {
     await this.readyPromise
     try {
-      const resp = await this.fetch(this.apiBase + path + this.stringifyQuery(payload?.query), {
+      const resp = await this.fetch(this.apiBase + path + this.stringifyQuery(opts?.query), {
         method,
         headers: {
           Authorization: `Bearer ${this.token ?? ''}`,
           Accept: 'application/json',
-          ...(payload?.body ? { 'Content-Type': 'application/json' } : {})
+          ...(opts?.body ? { 'Content-Type': 'application/json' } : {})
         },
-        body: payload?.body ? JSON.stringify(payload.body) : undefined
+        body: opts?.body ? JSON.stringify(opts.body) : undefined
       })
-      if (!resp.ok) {
+      const contentType = resp.headers.get("content-type")
+      const isJsonResponse = contentType && contentType.indexOf("application/json") !== -1
+      if (!resp.ok && !(resp.status === 422 && opts?.inlineValidation)) {
         if (resp.status === 401) {
           const loginRedirect = new URL(this.authRedirect)
           loginRedirect.searchParams.set('requestedUrl', location.href)
           location.href = loginRedirect.toString()
           throw error(401)
         } else {
-          const message = ((await rescue(resp.json()))?.message ?? resp.statusText) as string
+          const message = ((isJsonResponse ? (await rescue(resp.json()))?.message : await rescue(resp.text())) ?? resp.statusText) as string
           toasts.add(message)
           throw error(resp.status, message)
         }
       }
-      const contentType = resp.headers.get("content-type");
-      return (contentType && contentType.indexOf("application/json") !== -1) ? await resp.json() : await resp.text()
+      return ((isJsonResponse) ? await resp.json() : await resp.text()) as ReturnType
     } catch (e: any) {
       toasts.add(e.message as string)
       throw e
@@ -89,16 +90,52 @@ export class APIBase {
     return await this.request<ReturnType>(path, 'GET', { query })
   }
 
+  /**
+   * Remember to use validatedPost when the user is interacting with a form. That way they
+   * will get inline errors.
+   */
   async post <ReturnType = any> (path: string, body?: any, query?: APIBaseQueryPayload) {
     return await this.request<ReturnType>(path, 'POST', { body, query })
   }
 
+  /**
+   * Remember to use validatedPut when the user is interacting with a form. That way they
+   * will get inline errors.
+   */
   async put <ReturnType = any> (path: string, body?: any, query?: APIBaseQueryPayload) {
     return await this.request<ReturnType>(path, 'PUT', { body, query })
   }
 
+  /**
+   * Remember to use validatedPatch when the user is interacting with a form. That way they
+   * will get inline errors.
+   */
   async patch <ReturnType = any> (path: string, body?: any, query?: APIBaseQueryPayload) {
     return await this.request<ReturnType>(path, 'PATCH', { body, query })
+  }
+
+  /**
+   * Use this method when the user is interacting with a form. You should expect a ValidatedResponse,
+   * e.g. { success: false, messages: [{ type: 'error', message: 'That name is already taken.', path: 'name' }] }
+   */
+  async validatedPost <ReturnType extends ValidatedResponse = ValidatedResponse> (path: string, body?: any, query?: APIBaseQueryPayload) {
+    return await this.request<ReturnType>(path, 'POST', { body, query, inlineValidation: true })
+  }
+
+  /**
+   * Use this method when the user is interacting with a form. You should expect a ValidatedResponse,
+   * e.g. { success: false, messages: [{ type: 'error', message: 'That name is already taken.', path: 'name' }] }
+   */
+  async validatedPut <ReturnType extends ValidatedResponse = ValidatedResponse> (path: string, body?: any, query?: APIBaseQueryPayload) {
+    return await this.request<ReturnType>(path, 'PUT', { body, query, inlineValidation: true })
+  }
+
+  /**
+   * Use this method when the user is interacting with a form. You should expect a ValidatedResponse,
+   * e.g. { success: false, messages: [{ type: 'error', message: 'That name is already taken.', path: 'name' }] }
+   */
+  async validatedPatch <ReturnType extends ValidatedResponse = ValidatedResponse> (path: string, body?: any, query?: APIBaseQueryPayload) {
+    return await this.request<ReturnType>(path, 'PATCH', { body, query, inlineValidation: true })
   }
 
   /**
