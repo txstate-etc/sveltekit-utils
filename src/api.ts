@@ -1,5 +1,5 @@
 import { toasts } from '@txstate-mws/svelte-components'
-import { error } from '@sveltejs/kit'
+import { type NavigationTarget, error } from '@sveltejs/kit'
 import { get } from 'svelte/store'
 import { rescue, toArray } from 'txstate-utils'
 import { page } from '$app/stores'
@@ -17,8 +17,16 @@ type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>
  * Must be called from a svelte component. Should usually be your root +layout.svelte.
  */
 export function recordNavigations (callback: (evt: InteractionEvent) => void) {
+  let timer = 0
+  let from: NavigationTarget | null
   afterNavigate(navigation => {
-    callback({ eventType: 'sveltekit-utils-navigation', screen: (navigation.from ?? navigation.to)?.route.id!, target: navigation.to?.url.toString(), action: 'navigation', additionalProperties: { fullPageLoad: String(!navigation.from) } })
+      // save off the navigation.from in case we're debouncing a redirect
+      if (timer === 0) from = navigation.from
+      clearTimeout(timer) // we are debouncing because sometimes afterNavigate gets called twice
+      timer = setTimeout(() => {
+        callback({ eventType: 'sveltekit-utils-navigation', screen: (from ?? navigation.to)?.route.id!, target: navigation.to?.url.pathname, action: 'navigation', additionalProperties: { fullPageLoad: String(!from) } })
+        timer = 0
+      }, 10)
   })
 }
 
@@ -33,12 +41,12 @@ export class APIBase {
   }
 
   async init (token: string | undefined, fetch?: (info: RequestInfo, init?: RequestInit) => Promise<Response>) {
-    this.token = token
     this.fetch = fetch ?? this.fetch
-    if (this.token) {
-      sessionStorage.setItem('token', this.token)
+    if (token) {
+      this.token = token
+      sessionStorage.setItem('token', token)
     } else {
-      this.token = sessionStorage.getItem('token') ?? undefined
+      this.token ??= sessionStorage.getItem('token') ?? undefined
     }
     this.ready()
   }
