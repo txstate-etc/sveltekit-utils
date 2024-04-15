@@ -4,7 +4,10 @@
   "description": "Shared library for code that is specifically tied to sveltekit in addition to svelte.",
   "type": "module",
   "exports": {
-    ".": "./dist/index.js"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "types": "./dist/index.d.ts",
   "dependencies": {
