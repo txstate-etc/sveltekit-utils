@@ -31,12 +31,12 @@ export function recordNavigations (callback: (evt: InteractionEvent) => void) {
 }
 
 export class APIBase {
-  protected token?: string
+  public token?: string
   public fetch!: (info: RequestInfo, init?: RequestInit) => Promise<Response>
   protected ready!: () => void
   protected readyPromise: Promise<void>
 
-  constructor (protected apiBase: string, protected authRedirect: string) {
+  constructor (protected apiBase: string, public authRedirect: string) {
     this.readyPromise = new Promise(resolve => { this.ready = resolve })
   }
 
