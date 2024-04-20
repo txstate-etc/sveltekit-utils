@@ -1,10 +1,11 @@
+import type { InteractionEvent, ValidatedResponse } from '@txstate-mws/fastify-shared'
 import { toasts } from '@txstate-mws/svelte-components'
 import { type NavigationTarget, error } from '@sveltejs/kit'
 import { get } from 'svelte/store'
 import { rescue, toArray } from 'txstate-utils'
 import { page } from '$app/stores'
-import type { InteractionEvent, ValidatedResponse } from '@txstate-mws/fastify-shared'
 import { afterNavigate } from '$app/navigation'
+import { unifiedAuth } from './unifiedauth.js'
 
 export type APIBaseQueryPayload = string | Record<string, undefined|string|number|(string|number)[]>
 type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>
@@ -36,7 +37,7 @@ export class APIBase {
   protected ready!: () => void
   protected readyPromise: Promise<void>
 
-  constructor (protected apiBase: string, public authRedirect: string) {
+  constructor (protected apiBase: string, public authRedirect: string | URL, public loginRedirect: (api: APIBase, currentUrl: string) => URL = unifiedAuth.loginRedirect) {
     this.readyPromise = new Promise(resolve => { this.ready = resolve })
   }
 
@@ -77,9 +78,7 @@ export class APIBase {
       const isJsonResponse = contentType && contentType.indexOf("application/json") !== -1
       if (!resp.ok && !(resp.status === 422 && opts?.inlineValidation)) {
         if (resp.status === 401) {
-          const loginRedirect = new URL(this.authRedirect)
-          loginRedirect.searchParams.set('requestedUrl', location.href)
-          location.href = loginRedirect.toString()
+          location.href = this.loginRedirect(this, location.href).toString()
           throw error(401)
         } else {
           const message = ((isJsonResponse ? (await rescue(resp.json()))?.message : await rescue(resp.text())) ?? resp.statusText) as string
