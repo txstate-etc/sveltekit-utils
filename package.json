@@ -1,6 +1,6 @@
 {
   "name": "@txstate-mws/sveltekit-utils",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Shared library for code that is specifically tied to sveltekit in addition to svelte.",
   "type": "module",
   "exports": {
@@ -22,7 +22,7 @@
   },
   "scripts": {
     "prepublishOnly": "npm run build",
-    "build": "tsc -b"
+    "build": "rm -rf dist && tsc -b"
   },
   "repository": {
     "type": "git",
