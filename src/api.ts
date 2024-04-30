@@ -81,14 +81,17 @@ export class APIBase {
           location.href = this.loginRedirect(this, location.href).toString()
           throw error(401)
         } else {
-          const message = ((isJsonResponse ? (await rescue(resp.json()))?.message : await rescue(resp.text())) ?? resp.statusText) as string
-          toasts.add(message)
+          const body = (isJsonResponse ? (await rescue(resp.json())) : await rescue(resp.text())) ?? resp.statusText
+          let message = ''
+          if (typeof body === 'string') message = body
+          else if (body.message) message = body.message
+          else if (body[0]?.message) message = body[0].message
           throw error(resp.status, message)
         }
       }
       return ((isJsonResponse) ? await resp.json() : await resp.text()) as ReturnType
     } catch (e: any) {
-      toasts.add(e.message as string)
+      toasts.add(e.body?.message ?? e.message)
       throw e
     }
   }
