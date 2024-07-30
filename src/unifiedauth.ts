@@ -1,5 +1,6 @@
 import { type LoadEvent, redirect } from '@sveltejs/kit'
 import type { APIBase } from './api.js'
+import { isBlank } from 'txstate-utils'
 
 interface HandleOpts {
   /**
@@ -38,6 +39,14 @@ export const unifiedAuth = {
     const loginRedirect = new URL(api.authRedirect)
     loginRedirect.searchParams.set('requestedUrl', currentUrl)
     return loginRedirect
+  },
+
+  logoutHref (api: APIBase) {
+    if (isBlank(api.token)) return '#'
+    const authRedirect = new URL(api.authRedirect)
+    authRedirect.pathname = '/logout'
+    authRedirect.searchParams.set('unifiedJwt', api.token)
+    return authRedirect.toString()
   },
 
   requireAuth (api: APIBase, input: LoadEvent) {
