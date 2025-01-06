@@ -9,6 +9,13 @@ import { unifiedAuth } from './unifiedauth.js'
 
 export type APIBaseQueryPayload = string | Record<string, undefined|string|number|(string|number)[]>
 type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>
+export interface APIUploadInfo {
+  __type: 'APIUploadInfo'
+  multipartIndex: number
+  name: string
+  mime: string
+  size: number
+}
 
 /**
  * Provided for convenience in case you are not using APIBase but still want to record navigations
@@ -29,6 +36,28 @@ export function recordNavigations (callback: (evt: InteractionEvent) => void) {
         timer = 0
       }, 10)
   })
+}
+
+/**
+ * A non-mutating function that will replace all File objects in the variables with an APIUploadInfo
+ * object, and put the original File object into the files array so it can be appended to the multipart
+ * upload.
+ *
+ * When I say non-mutating, I mean it will not modify the original variables object. It will mutate the
+ * files parameter, which should be passed an empty array.
+ */
+function replaceFiles (variables: Record<string, any>, files: File[]) {
+  let newVariables = variables
+  for (const key in variables) {
+    const val = variables[key]
+    if (val instanceof File) {
+      files.push(val)
+      newVariables = { ...newVariables, [key]: { __type: 'APIUploadInfo', multipartIndex: files.length - 1, name: val.name, mime: val.type, size: val.size } }
+    } else if (val instanceof Object) {
+      newVariables = replaceFiles(val, files)
+    }
+  }
+  return newVariables
 }
 
 export class APIBase {
@@ -168,6 +197,50 @@ export class APIBase {
       throw new Error(JSON.stringify(gqlresponse.errors))
     }
     return gqlresponse.data
+  }
+
+  /**
+   * This is a special graphql request method that allows you to upload files. It will
+   * find all the File objects in the variables and replace them with an APIUploadInfo object.
+   *
+   * Then it will send a multipart/form-data request instead of a standard JSON body, and all
+   * the file data will be included in later parts.
+   */
+  async graphqlWithUploads <ReturnType = any> (
+    query: string,
+    variables: Record<string, any>,
+    /**
+     * Generally, set this to true if you are only validating a form. You don't want to
+     * be uploading files on every keystroke.
+     *
+     * In this case, we will send a regular post instead of multipart, and all the File objects
+     * in the variables will be replaced by an APIUploadInfo object as normal, including the
+     * multipartIndex, even though there are no multipart parts coming.
+     */
+    omitUploads?: boolean,
+    querySignature?: string
+  ): Promise<ReturnType> {
+    const files: File[] = []
+    variables = replaceFiles(variables, files)
+
+    // If we are only validating, we don't need to upload files
+    if (omitUploads) return this.graphql(query, variables, querySignature)
+
+    const form = new FormData()
+    form.set('body', JSON.stringify({
+      query,
+      variables,
+      extensions: {
+        querySignature
+      }
+    }))
+    for (let i = 0; i < files.length; i++) form.set(`file${i}`, files[i])
+    const gqlresponse = await this.request('/graphql', 'POST', { body: form })
+    if (gqlresponse.errors?.length) {
+      toasts.add(gqlresponse.errors[0].message)
+      throw new Error(JSON.stringify(gqlresponse.errors))
+    }
+    return gqlresponse
   }
 
   protected analyticsQueue: InteractionEvent[] = []
