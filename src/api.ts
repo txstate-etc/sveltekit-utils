@@ -54,7 +54,7 @@ function replaceFiles (variables: Record<string, any>, files: File[]) {
       files.push(val)
       newVariables = { ...newVariables, [key]: { __type: 'APIUploadInfo', multipartIndex: files.length - 1, name: val.name, mime: val.type, size: val.size } }
     } else if (val instanceof Object) {
-      newVariables = replaceFiles(val, files)
+      newVariables[key] = replaceFiles(val, files)
     }
   }
   return newVariables
