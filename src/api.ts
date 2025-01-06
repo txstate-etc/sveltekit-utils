@@ -177,7 +177,7 @@ export class APIBase {
     setTimeout(() => {
       const events = [...this.analyticsQueue]
       this.analyticsQueue.length = 0
-      this.post('/analytics', events).catch((e) => console.error(e))
+      if (events.length) this.post('/analytics', events).catch((e) => console.error(e))
     }, 2000)
   }
 
