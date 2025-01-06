@@ -224,7 +224,7 @@ export class APIBase {
     variables = replaceFiles(variables, files)
 
     // If we are only validating, we don't need to upload files
-    if (omitUploads) return this.graphql(query, variables, querySignature)
+    if (omitUploads || !files.length) return this.graphql(query, variables, querySignature)
 
     const form = new FormData()
     form.set('body', JSON.stringify({
