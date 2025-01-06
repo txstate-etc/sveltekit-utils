@@ -47,17 +47,22 @@ export function recordNavigations (callback: (evt: InteractionEvent) => void) {
  * files parameter, which should be passed an empty array.
  */
 function replaceFiles (variables: Record<string, any>, files: File[]) {
-  let newVariables = variables
+  let newVariables: Record<string, any> | undefined
   for (const key in variables) {
     const val = variables[key]
     if (val instanceof File) {
       files.push(val)
-      newVariables = { ...newVariables, [key]: { __type: 'APIUploadInfo', multipartIndex: files.length - 1, name: val.name, mime: val.type, size: val.size } }
+      newVariables ??= { ...variables }
+      newVariables[key] = { __type: 'APIUploadInfo', multipartIndex: files.length - 1, name: val.name, mime: val.type, size: val.size }
     } else if (val instanceof Object) {
-      newVariables[key] = replaceFiles(val, files)
+      const newVal = replaceFiles(val, files)
+      if (newVal !== val) {
+        newVariables ??= { ...variables }
+        newVariables[key] = newVal
+      }
     }
   }
-  return newVariables
+  return newVariables ?? variables
 }
 
 export class APIBase {
