@@ -2,7 +2,7 @@ import type { InteractionEvent, ValidatedResponse } from '@txstate-mws/fastify-s
 import { toasts } from '@txstate-mws/svelte-components'
 import { type NavigationTarget, error } from '@sveltejs/kit'
 import { get } from 'svelte/store'
-import { rescue, toArray } from 'txstate-utils'
+import { pick, rescue, toArray } from 'txstate-utils'
 import { page } from '$app/stores'
 import { afterNavigate } from '$app/navigation'
 import { unifiedAuth } from './unifiedauth.js'
@@ -130,6 +130,44 @@ export class APIBase {
     }
   }
 
+  async uploadWithProgress (path: string, formData: FormData, progress: (info: { loaded: number, total: number, ratio: number } | undefined) => void): Promise<any> {
+    await this.readyPromise
+    try {
+      return await new Promise((resolve, reject) => {
+        try {
+          progress({ loaded: 0, total: 0, ratio: 0 })
+          const request = new XMLHttpRequest()
+          request.open('POST', this.apiBase + path)
+
+          if (this.token) request.setRequestHeader('Authorization', `Bearer ${this.token}`)
+          request.setRequestHeader('Accept', 'application/json')
+
+          request.upload.addEventListener('progress', e => progress({ ...pick(e, 'loaded', 'total'), ratio: e.lengthComputable ? e.loaded / e.total : 0.1 }))
+
+          // request finished
+          request.addEventListener('load', e => {
+            if (request.status >= 400) reject(new Error(request.responseText))
+            else {
+              try {
+                resolve(JSON.parse(request.responseText))
+              } catch (e) {
+                reject(e)
+              }
+            }
+          })
+
+          request.addEventListener('abort', e => reject(new Error('Upload aborted.')))
+          request.addEventListener('error', e => reject(new Error('An error occurred during transfer. Upload not completed.')))
+          request.send(formData)
+        } catch (e) {
+          reject(e)
+        }
+      })
+    } finally {
+      progress(undefined)
+    }
+  }
+
   async get <ReturnType = any> (path: string, query?: APIBaseQueryPayload ) {
     return await this.request<ReturnType>(path, 'GET', { query })
   }
@@ -214,38 +252,45 @@ export class APIBase {
   async graphqlWithUploads <ReturnType = any> (
     query: string,
     variables: Record<string, any>,
-    /**
-     * Generally, set this to true if you are only validating a form. You don't want to
-     * be uploading files on every keystroke.
-     *
-     * In this case, we will send a regular post instead of multipart, and all the File objects
-     * in the variables will be replaced by an APIUploadInfo object as normal, including the
-     * multipartIndex, even though there are no multipart parts coming.
-     */
-    omitUploads?: boolean,
-    querySignature?: string
+    options?: {
+      /**
+       * Generally, set this to true if you are only validating a form. You don't want to
+       * be uploading files on every keystroke.
+       *
+       * In this case, we will send a regular post instead of multipart, and all the File objects
+       * in the variables will be replaced by an APIUploadInfo object as normal, including the
+       * multipartIndex, even though there are no multipart parts coming.
+       */
+      omitUploads?: boolean,
+      querySignature?: string,
+      /**
+       * This function will be called with a number between 0 and 1 as the uploads progress. The
+       * completion percentage is for the entire submission, not individual files.
+       */
+      progress?: (info: { loaded: number, total: number, ratio: number } | undefined) => void
+    }
   ): Promise<ReturnType> {
     const files: File[] = []
     variables = replaceFiles(variables, files)
 
     // If we are only validating, we don't need to upload files
-    if (omitUploads || !files.length) return this.graphql(query, variables, querySignature)
+    if (options?.omitUploads || !files.length) return this.graphql(query, variables, options?.querySignature)
 
     const form = new FormData()
     form.set('body', JSON.stringify({
       query,
       variables,
       extensions: {
-        querySignature
+        querySignature: options?.querySignature
       }
     }))
     for (let i = 0; i < files.length; i++) form.set(`file${i}`, files[i])
-    const gqlresponse = await this.request('/graphql', 'POST', { body: form })
+    const gqlresponse = await this.uploadWithProgress('/graphql', form, options?.progress ?? (() => {}))
     if (gqlresponse.errors?.length) {
       toasts.add(gqlresponse.errors[0].message)
       throw new Error(JSON.stringify(gqlresponse.errors))
     }
-    return gqlresponse
+    return gqlresponse.data
   }
 
   protected analyticsQueue: InteractionEvent[] = []
