@@ -16,6 +16,7 @@ export interface APIUploadInfo {
   mime: string
   size: number
 }
+export type APIBaseProgressFn = (info: { loaded: number, total: number, ratio: number } | undefined) => void
 
 /**
  * Provided for convenience in case you are not using APIBase but still want to record navigations
@@ -130,7 +131,7 @@ export class APIBase {
     }
   }
 
-  async uploadWithProgress (path: string, formData: FormData, progress: (info: { loaded: number, total: number, ratio: number } | undefined) => void): Promise<any> {
+  async uploadWithProgress (path: string, formData: FormData, progress: APIBaseProgressFn): Promise<any> {
     await this.readyPromise
     try {
       return await new Promise((resolve, reject) => {
@@ -267,7 +268,7 @@ export class APIBase {
        * This function will be called with a number between 0 and 1 as the uploads progress. The
        * completion percentage is for the entire submission, not individual files.
        */
-      progress?: (info: { loaded: number, total: number, ratio: number } | undefined) => void
+      progress?: APIBaseProgressFn
     }
   ): Promise<ReturnType> {
     const files: File[] = []
