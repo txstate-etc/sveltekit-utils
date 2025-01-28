@@ -10,7 +10,7 @@ import { unifiedAuth } from './unifiedauth.js'
 export type APIBaseQueryPayload = string | Record<string, undefined|string|number|(string|number)[]>
 type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>
 export interface APIUploadInfo {
-  __type: 'APIUploadInfo'
+  _type: 'APIUploadInfo'
   multipartIndex: number
   name: string
   mime: string
@@ -54,7 +54,7 @@ function replaceFiles (variables: Record<string, any>, files: File[]) {
     if (val instanceof File) {
       files.push(val)
       newVariables ??= { ...variables }
-      newVariables[key] = { __type: 'APIUploadInfo', multipartIndex: files.length - 1, name: val.name, mime: val.type, size: val.size }
+      newVariables[key] = { _type: 'APIUploadInfo', multipartIndex: files.length - 1, name: val.name, mime: val.type, size: val.size } as APIUploadInfo
     } else if (val instanceof Object) {
       const newVal = replaceFiles(val, files)
       if (newVal !== val) {
