@@ -53,7 +53,7 @@ function replaceFiles (variables: Record<string, any>, files: File[]) {
     const val = variables[key]
     if (val instanceof File) {
       files.push(val)
-      newVariables ??= { ...variables }
+      newVariables ??= Array.isArray(variables) ? [...variables] : { ...variables }
       newVariables[key] = { _type: 'APIUploadInfo', multipartIndex: files.length - 1, name: val.name, mime: val.type, size: val.size } as APIUploadInfo
     } else if (val instanceof Object) {
       const newVal = replaceFiles(val, files)
