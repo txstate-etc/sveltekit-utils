@@ -58,7 +58,7 @@ function replaceFiles (variables: Record<string, any>, files: File[]) {
     } else if (val instanceof Object) {
       const newVal = replaceFiles(val, files)
       if (newVal !== val) {
-        newVariables ??= { ...variables }
+        newVariables ??= Array.isArray(variables) ? [...variables] : { ...variables }
         newVariables[key] = newVal
       }
     }
