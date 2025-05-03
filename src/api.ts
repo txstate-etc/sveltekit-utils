@@ -20,7 +20,7 @@ export interface APIUploadInfo {
 export type APIBaseProgressFn = (info: { loaded: number, total: number, ratio: number } | undefined) => void
 
 export interface MessageFromAPI {
-  arg?: string
+  arg?: string | null
   message: string
   type: 'error' | 'warning' | 'success'
 }
