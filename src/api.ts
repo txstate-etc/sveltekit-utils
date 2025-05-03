@@ -362,9 +362,10 @@ export class APIBase {
    * and user. However, SubmitResponse always expects a `data` property. You can pass `user` as the dataName
    * and it will be returned as the `data` property.
    */
+  mutationForDialog (resp: MutationResponseFromAPI): SubmitResponse<undefined>
   mutationForDialog (resp: MutationResponseFromAPI, { prefix }: { prefix?: string }): SubmitResponse<undefined>
   mutationForDialog<T = any> (resp: MutationResponseFromAPI, { prefix, dataName }: { prefix?: string, dataName: string }): SubmitResponse<T>
-  mutationForDialog<T = any> (resp: MutationResponseFromAPI, { prefix, dataName }: { prefix?: string, dataName?: string }) {
+  mutationForDialog<T = any> (resp: MutationResponseFromAPI, { prefix, dataName }: { prefix?: string, dataName?: string } = {}) {
     return { success: resp.success, messages: this.messageForDialog(resp.messages, prefix), data: (dataName ? resp[dataName] : undefined) as T }
   }
 }
