@@ -1,8 +1,9 @@
 import type { InteractionEvent, ValidatedResponse } from '@txstate-mws/fastify-shared'
 import { toasts } from '@txstate-mws/svelte-components'
+import type { Feedback, SubmitResponse } from '@txstate-mws/svelte-forms'
 import { type NavigationTarget, error } from '@sveltejs/kit'
 import { get } from 'svelte/store'
-import { pick, rescue, toArray } from 'txstate-utils'
+import { isNotBlank, isNull, omit, pick, rescue, toArray } from 'txstate-utils'
 import { page } from '$app/stores'
 import { afterNavigate } from '$app/navigation'
 import { unifiedAuth } from './unifiedauth.js'
@@ -17,6 +18,18 @@ export interface APIUploadInfo {
   size: number
 }
 export type APIBaseProgressFn = (info: { loaded: number, total: number, ratio: number } | undefined) => void
+
+export interface MessageFromAPI {
+  arg: string
+  message: string
+  type: 'error' | 'warning' | 'success'
+}
+
+export interface MutationResponseFromAPI {
+  success: boolean
+  messages: MessageFromAPI[]
+  [key: string]: any
+}
 
 /**
  * Provided for convenience in case you are not using APIBase but still want to record navigations
@@ -311,5 +324,47 @@ export class APIBase {
    */
   recordNavigations () {
     recordNavigations(this.recordInteraction.bind(this))
+  }
+
+  /**
+   * This function is used to convert MutationMessageType[] that comes from our standard
+   * graphql servers into the Feedback[] type expected by svelte-forms.
+   *
+   * It will also remove a prefix from the arg property if you pass one in. This is useful
+   * because your graphql service should always be creating paths relative to the mutation's
+   * argument root, but the UI may not care how that's done.
+   *
+   * For example, consider the difference between `{ updateUser(id: ID!, name: String!, email: String!) {...} }`
+   * and `{ updateUser(id: ID!, user: UserInfo!) {...} }`. The first one should be sending back messages
+   * with `arg` like `name` or `email`, while the second one should be sending back messages with `arg`
+   * like `user.name` or `user.email` - because any user of the GraphQL API should expect that format after
+   * seeing the mutation signature.
+   *
+   * If your UI form for editing the user uses paths like `name` and `email`, you can pass `user` as the
+   * prefix to the second example and this function will remove it from the `arg` property when it creates
+   * the `path` property.
+   */
+  messageForDialog (messages: MessageFromAPI[], prefix?: string) {
+    return messages.map(m => {
+      return { ...omit(m, 'arg'), path: isNull(m.arg) ? null : isNotBlank(prefix) ? m.arg.replace(RegExp('^' + prefix + '\\.'), '') : m.arg }
+    }) as Feedback[]
+  }
+
+  /**
+   * This function is used to convert MutationResponseFromAPI into the SubmitResponse
+   * type expected by svelte-forms.
+   *
+   * It will also remove a prefix from the arg property if you pass one in. See messageForDialog
+   * for more details.
+   *
+   * If you pass a dataName, it will be used to extract the data object from the response. It's typical
+   * in graphql to name the data for what is is, for instance, updateUser probably returns success, messages,
+   * and user. However, SubmitResponse always expects a `data` property. You can pass `user` as the dataName
+   * and it will be returned as the `data` property.
+   */
+  mutationForDialog (resp: MutationResponseFromAPI, { prefix }: { prefix?: string }): SubmitResponse<undefined>
+  mutationForDialog<T = any> (resp: MutationResponseFromAPI, { prefix, dataName }: { prefix?: string, dataName: string }): SubmitResponse<T>
+  mutationForDialog<T = any> (resp: MutationResponseFromAPI, { prefix, dataName }: { prefix?: string, dataName?: string }) {
+    return { success: resp.success, messages: this.messageForDialog(resp.messages, prefix), data: (dataName ? resp[dataName] : undefined) as T }
   }
 }
