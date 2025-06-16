@@ -44,7 +44,7 @@ export const unifiedAuth = {
   logout (api: APIBase) {
     if (isBlank(api.token)) return
     const authRedirect = new URL(api.authRedirect)
-    authRedirect.pathname = '/logout'
+    authRedirect.pathname = [...authRedirect.pathname.split('/').slice(0, -1), 'logout'].join('/')
     authRedirect.searchParams.set('unifiedJwt', api.token)
     api.token = undefined
     sessionStorage.removeItem('token')
