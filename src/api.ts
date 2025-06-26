@@ -97,6 +97,14 @@ export class APIBase {
     } else {
       this.token ??= sessionStorage.getItem('token') ?? undefined
     }
+    if (typeof document !== 'undefined') {
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "hidden") {
+          this.sendBatchedAnalytics().catch(console.error)
+        }
+      })
+    }
+
     this.ready()
   }
 
@@ -110,11 +118,12 @@ export class APIBase {
     return '?' + p.toString()
   }
 
-  protected async request <ReturnType = any> (path: string, method: string, opts?: { body?: any, query?: APIBaseQueryPayload, inlineValidation?: boolean }) {
+  protected async request <ReturnType = any> (path: string, method: string, opts?: { body?: any, query?: APIBaseQueryPayload, inlineValidation?: boolean, keepalive?: boolean }) {
     await this.readyPromise
     try {
       const resp = await this.fetch(this.apiBase + path + this.stringifyQuery(opts?.query), {
         method,
+        keepalive: opts?.keepalive,
         headers: {
           Authorization: `Bearer ${this.token ?? ''}`,
           Accept: 'application/json',
@@ -307,15 +316,27 @@ export class APIBase {
     return gqlresponse.data
   }
 
+  protected lastAnalyticsSent = new Date().getTime()
   protected analyticsQueue: InteractionEvent[] = []
+  protected analyticsTimer: ReturnType<typeof setTimeout> | undefined
   recordInteraction(evt: Optional<InteractionEvent, 'screen'>) {
     evt.screen ??= get(page).route.id!
     this.analyticsQueue.push(evt as InteractionEvent)
-    setTimeout(() => {
-      const events = [...this.analyticsQueue]
-      this.analyticsQueue.length = 0
-      if (events.length) this.post('/analytics', events).catch((e) => console.error(e))
-    }, 2000)
+    clearTimeout(this.analyticsTimer)
+    // If the last analytics was sent more than 2 seconds ago, send immediately
+    if (new Date().getTime() - this.lastAnalyticsSent > 2000) this.sendBatchedAnalytics().catch(console.error)
+    // Otherwise, collect more analytics for up to 2 seconds
+    else this.analyticsTimer = setTimeout(() => this.sendBatchedAnalytics().catch(console.error), 2000)
+  }
+
+  async sendBatchedAnalytics () {
+    const events = [...this.analyticsQueue]
+    this.analyticsQueue.length = 0
+    if (events.length) {
+      this.lastAnalyticsSent = new Date().getTime()
+      // keepalive true means the request will not be cancelled even if the user navigates away
+      await this.request('/analytics', 'POST', { body: events, keepalive: true })
+    }
   }
 
   /**
