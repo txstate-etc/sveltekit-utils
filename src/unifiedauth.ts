@@ -1,6 +1,7 @@
 import { type LoadEvent, redirect } from '@sveltejs/kit'
 import type { APIBase } from './api.js'
 import { isBlank } from 'txstate-utils'
+import { decodeJwt } from 'jose'
 
 interface HandleOpts {
   /**
@@ -43,9 +44,10 @@ export const unifiedAuth = {
 
   logout (api: APIBase) {
     if (isBlank(api.token)) return
+    const token = api.token!
     const authRedirect = new URL(api.authRedirect)
     authRedirect.pathname = [...authRedirect.pathname.split('/').slice(0, -1), 'logout'].join('/')
-    authRedirect.searchParams.set('unifiedJwt', api.token)
+    authRedirect.searchParams.set('unifiedJwt', token)
     api.token = undefined
     sessionStorage.removeItem('token')
     window.location.href = authRedirect.toString()
@@ -55,5 +57,81 @@ export const unifiedAuth = {
     if (!api.token) {
       throw redirect(302, this.loginRedirect(api, input.url.toString()))
     }
+  },
+
+  /**
+   * Start impersonating a user. This will store the current token and replace it with
+   * an impersonation token obtained from Unified Auth.
+   *
+   * The impersonation token will expire in 1 hour.
+   */
+  async impersonate (api: APIBase, netid: string) {
+    if (isBlank(api.token)) throw new Error('Must be authenticated to impersonate.')
+
+    // Store original token before impersonating
+    const originalToken = api.token!
+    sessionStorage.setItem('originalToken', originalToken)
+
+    // Get impersonation token from unified-auth
+    const authUrl = new URL(api.authRedirect)
+    const impersonateUrl = new URL('/impersonate', authUrl.origin)
+
+    const resp = await fetch(impersonateUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${originalToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ netid })
+    })
+
+    if (!resp.ok) {
+      const error = await resp.text()
+      throw new Error(`Failed to impersonate: ${error}`)
+    }
+
+    const { token } = await resp.json()
+
+    // Replace current token with impersonation token
+    api.token = token
+    sessionStorage.setItem('token', token)
+  },
+
+  /**
+   * Exit impersonation and restore the original token.
+   */
+  exitImpersonation (api: APIBase) {
+    const originalToken = sessionStorage.getItem('originalToken')
+    if (!originalToken) {
+      throw new Error('No original token found. Not currently impersonating.')
+    }
+
+    api.token = originalToken
+    sessionStorage.setItem('token', originalToken)
+    sessionStorage.removeItem('originalToken')
+  },
+
+  /**
+   * Check if the current token is an impersonation token.
+   * Returns { isImpersonating: false } if not impersonating.
+   * Returns { isImpersonating: true, impersonatedUser: string, impersonatedBy: string } if impersonating.
+   */
+  getImpersonationStatus (api: APIBase): { isImpersonating: false } | { isImpersonating: true, impersonatedUser: string, impersonatedBy: string } {
+    if (isBlank(api.token)) return { isImpersonating: false }
+
+    try {
+      const payload = decodeJwt(api.token)
+      if (payload.act && (payload.act as any).sub) {
+        return {
+          isImpersonating: true,
+          impersonatedUser: payload.sub as string,
+          impersonatedBy: (payload.act as any).sub as string
+        }
+      }
+    } catch (e) {
+      // Invalid token, treat as not impersonating
+    }
+
+    return { isImpersonating: false }
   }
 }
