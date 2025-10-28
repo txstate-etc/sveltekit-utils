@@ -44,12 +44,15 @@ export const unifiedAuth = {
 
   logout (api: APIBase) {
     if (isBlank(api.token)) return
-    const token = api.token!
+    // If impersonating, use the original token for logout
+    const originalToken = sessionStorage.getItem('originalToken')
+    const token = originalToken ?? api.token!
     const authRedirect = new URL(api.authRedirect)
     authRedirect.pathname = [...authRedirect.pathname.split('/').slice(0, -1), 'logout'].join('/')
     authRedirect.searchParams.set('unifiedJwt', token)
     api.token = undefined
     sessionStorage.removeItem('token')
+    sessionStorage.removeItem('originalToken')
     window.location.href = authRedirect.toString()
   },
 
