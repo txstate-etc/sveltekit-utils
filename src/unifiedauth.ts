@@ -3,7 +3,32 @@ import type { APIBase } from './api.js'
 import { isBlank, Cache } from 'txstate-utils'
 import { decodeJwt } from 'jose'
 
-const mayImpersonateCache = new Cache(async (api: APIBase, netid: string) => {
+const mayImpersonateAnyCache = new Cache(async (api: APIBase) => {
+  if (isBlank(api.token)) return false
+
+  const authUrl = new URL(api.authRedirect)
+  const mayImpersonateUrl = new URL('/mayImpersonate', authUrl.origin)
+
+  try {
+    const resp = await fetch(mayImpersonateUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${api.token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({})
+    })
+
+    if (!resp.ok) return false
+
+    const { authorized } = await resp.json()
+    return !!authorized
+  } catch {
+    return false
+  }
+})
+
+const mayImpersonateNetidCache = new Cache(async (api: APIBase, netid: string) => {
   if (isBlank(api.token)) return false
 
   const authUrl = new URL(api.authRedirect)
@@ -164,14 +189,25 @@ export const unifiedAuth = {
   },
 
   /**
-   * Check if the current user is authorized to impersonate the given netid.
+   * Check if the current user is authorized to impersonate anyone.
    * Results are cached to avoid repeated requests.
    *
    * @param api The API instance
-   * @param netid The netid to check impersonation authorization for
+   * @returns A promise that resolves to true if authorized to impersonate, false otherwise
+   */
+  async mayImpersonateAny (api: APIBase): Promise<boolean> {
+    return await mayImpersonateAnyCache.get(api)
+  },
+
+  /**
+   * Check if the current user is authorized to impersonate a specific user.
+   * Results are cached to avoid repeated requests.
+   *
+   * @param api The API instance
+   * @param netid The netid to check authorization for
    * @returns A promise that resolves to true if authorized, false otherwise
    */
   async mayImpersonate (api: APIBase, netid: string): Promise<boolean> {
-    return await mayImpersonateCache.get(api, netid)
+    return await mayImpersonateNetidCache.get(api, netid)
   }
 }
