@@ -3,9 +3,7 @@ import type { APIBase } from './api.js'
 import { isBlank, Cache } from 'txstate-utils'
 import { decodeJwt } from 'jose'
 
-const mayImpersonateAnyCache = new Cache(async (api: APIBase) => {
-  if (isBlank(api.token)) return false
-
+const mayImpersonateAnyCache = new Cache(async (token: string, api: APIBase) => {
   const authUrl = new URL(api.authRedirect)
   const mayImpersonateUrl = new URL('/mayImpersonate', authUrl.origin)
 
@@ -13,7 +11,7 @@ const mayImpersonateAnyCache = new Cache(async (api: APIBase) => {
     const resp = await fetch(mayImpersonateUrl, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${api.token}`,
+        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({})
@@ -28,9 +26,7 @@ const mayImpersonateAnyCache = new Cache(async (api: APIBase) => {
   }
 })
 
-const mayImpersonateNetidCache = new Cache(async (api: APIBase, netid: string) => {
-  if (isBlank(api.token)) return false
-
+const mayImpersonateNetidCache = new Cache(async ({ token, netid }: { token: string, netid: string }, api: APIBase) => {
   const authUrl = new URL(api.authRedirect)
   const mayImpersonateUrl = new URL('/mayImpersonate', authUrl.origin)
 
@@ -38,7 +34,7 @@ const mayImpersonateNetidCache = new Cache(async (api: APIBase, netid: string) =
     const resp = await fetch(mayImpersonateUrl, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${api.token}`,
+        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ netid })
@@ -196,7 +192,8 @@ export const unifiedAuth = {
    * @returns A promise that resolves to true if authorized to impersonate, false otherwise
    */
   async mayImpersonateAny (api: APIBase): Promise<boolean> {
-    return await mayImpersonateAnyCache.get(api)
+    if (isBlank(api.token)) return false
+    return await mayImpersonateAnyCache.get(api.token, api)
   },
 
   /**
@@ -208,6 +205,7 @@ export const unifiedAuth = {
    * @returns A promise that resolves to true if authorized, false otherwise
    */
   async mayImpersonate (api: APIBase, netid: string): Promise<boolean> {
-    return await mayImpersonateNetidCache.get(api, netid)
+    if (isBlank(api.token)) return false
+    return await mayImpersonateNetidCache.get({ token: api.token, netid }, api)
   }
 }
