@@ -384,6 +384,13 @@ export class APIBase {
    * and it will be returned as the `data` property.
    */
   mutationForDialog (resp: MutationResponseFromAPI): SubmitResponse<undefined>
+  mutationForDialog<
+    T extends MutationResponseFromAPI,
+    K extends keyof T
+  >(
+    resp: T,
+    { prefix, dataName }: { prefix?: string, dataName: K }
+  ): SubmitResponse<T[K]>
   mutationForDialog (resp: MutationResponseFromAPI, { prefix }: { prefix?: string }): SubmitResponse<undefined>
   mutationForDialog<T = any> (resp: MutationResponseFromAPI, { prefix, dataName }: { prefix?: string, dataName: string }): SubmitResponse<T>
   mutationForDialog<T = any> (resp: MutationResponseFromAPI, { prefix, dataName }: { prefix?: string, dataName?: string } = {}) {
