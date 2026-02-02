@@ -99,7 +99,9 @@ export const unifiedAuth = {
     api.token = undefined
     sessionStorage.removeItem('token')
     sessionStorage.removeItem('originalToken')
-    window.location.href = authRedirect.toString()
+
+    history.replaceState(null, '', authRedirect.toString())
+    window.location.replace(authRedirect.toString())
   },
 
   requireAuth (api: APIBase, input: LoadEvent) {
