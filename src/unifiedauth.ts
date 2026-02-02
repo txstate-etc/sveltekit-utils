@@ -100,7 +100,7 @@ export const unifiedAuth = {
     sessionStorage.removeItem('token')
     sessionStorage.removeItem('originalToken')
 
-    history.replaceState(null, '', authRedirect.toString())
+    history.replaceState(null, '')
     window.location.replace(authRedirect.toString())
   },
 
