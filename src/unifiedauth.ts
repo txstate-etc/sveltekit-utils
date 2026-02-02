@@ -2,6 +2,7 @@ import { type LoadEvent, redirect } from '@sveltejs/kit'
 import type { APIBase } from './api.js'
 import { isBlank, Cache } from 'txstate-utils'
 import { decodeJwt } from 'jose'
+import { invalidateAll } from '$app/navigation'
 
 const mayImpersonateAnyCache = new Cache(async (token: string, api: APIBase) => {
   const authUrl = new URL(api.authRedirect)
@@ -79,6 +80,11 @@ export const unifiedAuth = {
       }
       throw redirect(302, redirectUrl)
     }
+    window.addEventListener('pageshow', (event) => {
+      if (event.persisted && isBlank(api.token)) {
+        invalidateAll()
+      }
+    })
     if (!opts?.allowUnauthenticated) this.requireAuth(api, input)
   },
 
@@ -99,9 +105,7 @@ export const unifiedAuth = {
     api.token = undefined
     sessionStorage.removeItem('token')
     sessionStorage.removeItem('originalToken')
-
-    history.replaceState(null, '')
-    window.location.replace(authRedirect.toString())
+    location.href = authRedirect.toString()
   },
 
   requireAuth (api: APIBase, input: LoadEvent) {
