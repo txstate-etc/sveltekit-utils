@@ -1,6 +1,6 @@
 {
   "name": "@txstate-mws/sveltekit-utils",
-  "version": "1.3.5",
+  "version": "1.3.6",
   "description": "Shared library for code that is specifically tied to sveltekit in addition to svelte.",
   "type": "module",
   "exports": {

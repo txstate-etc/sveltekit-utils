@@ -81,7 +81,8 @@ export const unifiedAuth = {
       throw redirect(302, redirectUrl)
     }
     window.addEventListener('pageshow', (event) => {
-      if (event.persisted && isBlank(api.token)) {
+      if (event.persisted && isBlank(sessionStorage.getItem('token'))) {
+        api.token = undefined
         invalidateAll()
       }
     })
